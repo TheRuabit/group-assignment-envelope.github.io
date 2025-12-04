@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { AppState, GroupAssignment } from './types';
-import { enrollSubject, verifyLogin } from './services/mockDatabase';
+import { enrollSubject, verifyLogin, checkAdminCredentials, checkRACredentials } from './services/mockDatabase';
 import { generateWelcomeMessage } from './services/geminiService';
 import AdminPanel from './components/AdminPanel';
+import RAPanel from './components/RAPanel';
 
 // Icons
 const LockIcon = () => (
@@ -34,24 +35,33 @@ export default function App() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    if (!inputSubjectId.trim()) return;
+    const id = inputSubjectId.trim();
+    const code = inputAccessCode.trim();
 
-    // Admin Shortcut
-    if (inputSubjectId.trim() === 'ADMIN_SECRET') {
+    if (!id) return;
+
+    // Check for Admin Credentials
+    if (checkAdminCredentials(id, code)) {
       setState(prev => ({ ...prev, view: 'ADMIN' }));
+      return;
+    }
+
+    // Check for RA Credentials
+    if (checkRACredentials(id, code)) {
+      setState(prev => ({ ...prev, view: 'RA_DASHBOARD' }));
       return;
     }
 
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      const isValid = await verifyLogin(inputSubjectId.trim(), inputAccessCode.trim());
+      const isValid = await verifyLogin(id, code);
       
       if (isValid) {
         setState(prev => ({
           ...prev,
           view: 'INSTRUCTIONS',
-          currentSubjectId: inputSubjectId.trim(),
+          currentSubjectId: id,
           isLoading: false
         }));
       } else {
@@ -108,6 +118,10 @@ export default function App() {
 
   if (state.view === 'ADMIN') {
     return <AdminPanel onBack={() => setState(prev => ({ ...prev, view: 'LOGIN' }))} />;
+  }
+
+  if (state.view === 'RA_DASHBOARD') {
+    return <RAPanel onBack={handleLogout} />;
   }
 
   return (
@@ -286,11 +300,6 @@ export default function App() {
           </p>
         </div>
       </main>
-      
-      {/* Hidden hint for the user reviewing this code on how to access admin */}
-      <div className="fixed bottom-2 right-2 opacity-0 hover:opacity-100 text-[10px] text-slate-300">
-        Hint: Login ID 'ADMIN_SECRET'
-      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { saveSequence, resetDatabase, getCredentials, generateCredential, getDb } from '../services/mockDatabase';
+import { saveSequence, resetDatabase, getCredentials, generateCredential, getDb, getSequence } from '../services/mockDatabase';
 import { GroupAssignment, SubjectCredential, SubjectRecord } from '../types';
 
 interface AdminPanelProps {
@@ -15,20 +15,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   // Subject State
   const [newSubjectId, setNewSubjectId] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<string>('AUTO'); // 'AUTO' or groupId
   const [credentials, setCredentials] = useState<SubjectCredential[]>([]);
   const [enrollments, setEnrollments] = useState<SubjectRecord[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<GroupAssignment[]>([]);
 
   useEffect(() => {
     refreshData();
   }, []);
 
   const refreshData = () => {
-    // Load Sequence Template
-    const template: GroupAssignment[] = [
-      { groupId: 'A', groupName: 'Group A', description: 'Control' },
-      { groupId: 'B', groupName: 'Group B', description: 'Tier 1' },
-    ];
-    setJsonInput(JSON.stringify(template, null, 2));
+    // Load Sequence Config
+    const currentSequence = getSequence();
+    setJsonInput(JSON.stringify(currentSequence, null, 2));
+
+    // Extract unique groups for the dropdown
+    const uniqueGroups = Array.from(new Set(currentSequence.map(s => JSON.stringify(s))))
+      .map(s => JSON.parse(s) as GroupAssignment);
+    setAvailableGroups(uniqueGroups);
 
     // Load Credentials and Enrollments
     setCredentials(getCredentials());
@@ -44,6 +48,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       saveSequence(parsed);
       setSequenceStatus('Sequence saved successfully!');
       setTimeout(() => setSequenceStatus(''), 3000);
+      refreshData();
     } catch (e) {
       setSequenceStatus('Error: Invalid JSON');
     }
@@ -61,14 +66,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   const handleGenerateCode = () => {
     if (!newSubjectId.trim()) return;
-    generateCredential(newSubjectId.trim());
+    
+    let forcedGroup: GroupAssignment | undefined = undefined;
+    if (selectedGroup !== 'AUTO') {
+      forcedGroup = availableGroups.find(g => g.groupId === selectedGroup);
+    }
+
+    generateCredential(newSubjectId.trim(), forcedGroup);
+    
     setNewSubjectId('');
+    setSelectedGroup('AUTO');
     refreshData();
   };
 
   const getEnrollmentStatus = (subId: string) => {
     const record = enrollments.find(e => e.subjectId.toLowerCase() === subId.toLowerCase());
-    return record ? `Enrolled: ${record.assignedGroup.groupId}` : 'Pending';
+    return record ? `Enrolled: ${record.assignedGroup.groupName}` : 'Pending';
   };
 
   return (
@@ -98,7 +111,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         <div className="animate-in fade-in duration-300">
           <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg mb-6">
             <h3 className="text-sm font-bold text-blue-900 mb-2">Generate New Credential</h3>
-            <div className="flex gap-2">
+            <div className="flex flex-col md:flex-row gap-2">
               <input 
                 type="text" 
                 value={newSubjectId}
@@ -106,16 +119,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 placeholder="Enter Subject ID (e.g., SUB-1001)"
                 className="flex-1 px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              
+              <select
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="AUTO">Auto (Sequential)</option>
+                {availableGroups.map((g, idx) => (
+                  <option key={`${g.groupId}-${idx}`} value={g.groupId}>
+                    Force: {g.groupName} ({g.groupId})
+                  </option>
+                ))}
+              </select>
+
               <button 
                 onClick={handleGenerateCode}
                 disabled={!newSubjectId}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
               >
                 Generate Code
               </button>
             </div>
             <p className="text-xs text-blue-600 mt-2">
-              Provide the Subject ID and the generated Access Code below to the parent.
+              Select a group to manually allocate, or leave as "Auto" to follow the blind sequence.
             </p>
           </div>
 
@@ -125,6 +152,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 <tr>
                   <th className="px-4 py-3 rounded-tl-lg">Subject ID</th>
                   <th className="px-4 py-3">Access Code</th>
+                  <th className="px-4 py-3">Allocation</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 rounded-tr-lg">Created At</th>
                 </tr>
@@ -132,7 +160,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <tbody className="divide-y divide-slate-100 border border-slate-100">
                 {credentials.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic">
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">
                       No subjects registered yet. Use the form above to generate credentials.
                     </td>
                   </tr>
@@ -142,6 +170,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       <td className="px-4 py-3 font-medium text-slate-900">{cred.subjectId}</td>
                       <td className="px-4 py-3 font-mono text-blue-600 font-bold bg-blue-50/50 inline-block my-1 rounded px-2">
                         {cred.accessCode}
+                      </td>
+                      <td className="px-4 py-3">
+                         {cred.forcedGroup ? (
+                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800" title="Manually Allocated">
+                             Manual: {cred.forcedGroup.groupName}
+                           </span>
+                         ) : (
+                           <span className="text-slate-400 text-xs italic">Auto / Sequential</span>
+                         )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${

@@ -14,10 +14,11 @@ export interface SubjectCredential {
   subjectId: string;
   accessCode: string;
   createdAt: number;
+  forcedGroup?: GroupAssignment;
 }
 
 export interface AppState {
-  view: 'LOGIN' | 'INSTRUCTIONS' | 'REVEAL' | 'ADMIN';
+  view: 'LOGIN' | 'INSTRUCTIONS' | 'REVEAL' | 'ADMIN' | 'RA_DASHBOARD';
   currentSubjectId: string | null;
   assignment: GroupAssignment | null;
   isLoading: boolean;
