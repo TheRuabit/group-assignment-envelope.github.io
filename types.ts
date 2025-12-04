@@ -10,6 +10,12 @@ export interface SubjectRecord {
   enrollmentTimestamp: number;
 }
 
+export interface SubjectCredential {
+  subjectId: string;
+  accessCode: string;
+  createdAt: number;
+}
+
 export interface AppState {
   view: 'LOGIN' | 'INSTRUCTIONS' | 'REVEAL' | 'ADMIN';
   currentSubjectId: string | null;
@@ -20,5 +26,6 @@ export interface AppState {
 export const STORAGE_KEYS = {
   ASSIGNMENTS: 'study_assignments_db',
   SEQUENCE: 'study_sequence_config',
-  API_KEY: 'gemini_api_key_cache' // In a real app, this wouldn't be in local storage
+  CREDENTIALS: 'study_subject_credentials',
+  API_KEY: 'gemini_api_key_cache'
 };

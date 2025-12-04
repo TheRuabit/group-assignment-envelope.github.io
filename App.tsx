@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppState, GroupAssignment } from './types';
-import { enrollSubject } from './services/mockDatabase';
+import { enrollSubject, verifyLogin } from './services/mockDatabase';
 import { generateWelcomeMessage } from './services/geminiService';
 import AdminPanel from './components/AdminPanel';
 
@@ -14,6 +14,9 @@ const UserIcon = () => (
 const CheckIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
 );
+const KeyIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+);
 
 export default function App() {
   const [state, setState] = useState<AppState>({
@@ -24,22 +27,41 @@ export default function App() {
   });
 
   const [inputSubjectId, setInputSubjectId] = useState('');
+  const [inputAccessCode, setInputAccessCode] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [geminiMessage, setGeminiMessage] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError('');
     if (!inputSubjectId.trim()) return;
 
+    // Admin Shortcut
     if (inputSubjectId.trim() === 'ADMIN_SECRET') {
       setState(prev => ({ ...prev, view: 'ADMIN' }));
       return;
     }
 
-    setState(prev => ({
-      ...prev,
-      view: 'INSTRUCTIONS',
-      currentSubjectId: inputSubjectId.trim()
-    }));
+    setState(prev => ({ ...prev, isLoading: true }));
+
+    try {
+      const isValid = await verifyLogin(inputSubjectId.trim(), inputAccessCode.trim());
+      
+      if (isValid) {
+        setState(prev => ({
+          ...prev,
+          view: 'INSTRUCTIONS',
+          currentSubjectId: inputSubjectId.trim(),
+          isLoading: false
+        }));
+      } else {
+        setLoginError('Invalid Subject ID or Access Code.');
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
+    } catch (err) {
+      setLoginError('Connection error. Please try again.');
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
   };
 
   const handleReveal = async () => {
@@ -77,6 +99,8 @@ export default function App() {
       isLoading: false
     });
     setInputSubjectId('');
+    setInputAccessCode('');
+    setLoginError('');
     setGeminiMessage('');
   };
 
@@ -115,9 +139,9 @@ export default function App() {
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6 mx-auto">
                 <UserIcon />
               </div>
-              <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">Subject Verification</h1>
+              <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">Participant Login</h1>
               <p className="text-center text-slate-500 mb-8 text-sm">
-                Please enter the Subject ID provided by your Research Assistant to proceed.
+                Enter your credentials to access the study assignment portal.
               </p>
               
               <form onSubmit={handleLogin} className="space-y-4">
@@ -128,17 +152,46 @@ export default function App() {
                     type="text"
                     value={inputSubjectId}
                     onChange={(e) => setInputSubjectId(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition text-lg"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition text-lg placeholder-slate-300"
                     placeholder="e.g. SUB-1049"
                     autoFocus
                   />
                 </div>
+                
+                <div>
+                  <label htmlFor="accessCode" className="block text-xs font-medium text-slate-700 mb-1 uppercase tracking-wide">Access Code</label>
+                  <div className="relative">
+                    <input
+                      id="accessCode"
+                      type="password"
+                      value={inputAccessCode}
+                      onChange={(e) => setInputAccessCode(e.target.value)}
+                      className="w-full px-4 py-3 pl-10 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition text-lg placeholder-slate-300 tracking-widest"
+                      placeholder="••••••"
+                    />
+                    <div className="absolute left-3 top-3.5 text-slate-400">
+                      <KeyIcon />
+                    </div>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <div className="text-red-500 text-sm text-center bg-red-50 py-2 rounded">
+                    {loginError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={!inputSubjectId}
-                  className="w-full bg-slate-900 text-white font-medium py-3.5 rounded-lg hover:bg-slate-800 active:scale-[0.98] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!inputSubjectId || !inputAccessCode || state.isLoading}
+                  className="w-full bg-slate-900 text-white font-medium py-3.5 rounded-lg hover:bg-slate-800 active:scale-[0.98] transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center"
                 >
-                  Verify Identity
+                  {state.isLoading ? (
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : "Secure Login"}
                 </button>
               </form>
             </div>

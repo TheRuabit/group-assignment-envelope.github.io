@@ -1,4 +1,4 @@
-import { GroupAssignment, SubjectRecord, STORAGE_KEYS } from '../types';
+import { GroupAssignment, SubjectRecord, SubjectCredential, STORAGE_KEYS } from '../types';
 
 // Default sequence if admin hasn't configured one (Tier 1 / Tier 2 alternating)
 const DEFAULT_SEQUENCE: GroupAssignment[] = [
@@ -13,7 +13,7 @@ const DEFAULT_SEQUENCE: GroupAssignment[] = [
 ];
 
 // Helper to get data from "DB"
-const getDb = (): SubjectRecord[] => {
+export const getDb = (): SubjectRecord[] => {
   const data = localStorage.getItem(STORAGE_KEYS.ASSIGNMENTS);
   return data ? JSON.parse(data) : [];
 };
@@ -24,14 +24,58 @@ const getSequence = (): GroupAssignment[] => {
   return data ? JSON.parse(data) : DEFAULT_SEQUENCE;
 };
 
-// Admin function to save sequence
+// Helper to get credentials
+export const getCredentials = (): SubjectCredential[] => {
+  const data = localStorage.getItem(STORAGE_KEYS.CREDENTIALS);
+  return data ? JSON.parse(data) : [];
+};
+
+// --- Admin Functions ---
+
 export const saveSequence = (sequence: GroupAssignment[]) => {
   localStorage.setItem(STORAGE_KEYS.SEQUENCE, JSON.stringify(sequence));
 };
 
 export const resetDatabase = () => {
   localStorage.removeItem(STORAGE_KEYS.ASSIGNMENTS);
+  localStorage.removeItem(STORAGE_KEYS.CREDENTIALS);
 };
+
+export const generateCredential = (subjectId: string): string => {
+  const credentials = getCredentials();
+  
+  // Check if already exists
+  const existing = credentials.find(c => c.subjectId.toLowerCase() === subjectId.toLowerCase());
+  if (existing) return existing.accessCode;
+
+  // Generate random 6 digit code
+  const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  credentials.push({
+    subjectId,
+    accessCode,
+    createdAt: Date.now()
+  });
+  
+  localStorage.setItem(STORAGE_KEYS.CREDENTIALS, JSON.stringify(credentials));
+  return accessCode;
+};
+
+// --- Auth Functions ---
+
+export const verifyLogin = async (subjectId: string, accessCode: string): Promise<boolean> => {
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  const credentials = getCredentials();
+  const valid = credentials.find(
+    c => c.subjectId.toLowerCase() === subjectId.toLowerCase() && c.accessCode === accessCode
+  );
+  
+  return !!valid;
+};
+
+// --- Enrollment Functions ---
 
 /**
  * Core Logic:
@@ -46,7 +90,7 @@ export const enrollSubject = async (subjectId: string): Promise<GroupAssignment>
   const db = getDb();
   const sequence = getSequence();
 
-  // 1. Check existing
+  // 1. Check existing enrollment
   const existing = db.find(r => r.subjectId.toLowerCase() === subjectId.toLowerCase());
   if (existing) {
     return existing.assignedGroup;
