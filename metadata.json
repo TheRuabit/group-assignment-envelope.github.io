@@ -1,0 +1,5 @@
+{
+  "name": "Copy of BlindGroupAssign",
+  "description": "A double-blind group assignment tool for research subjects. Ensures sequential enrollment integrity while keeping RAs blinded.",
+  "requestFramePermissions": []
+}
