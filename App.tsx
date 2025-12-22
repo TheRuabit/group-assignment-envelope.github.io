@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { AppState, GroupAssignment } from './types';
 import { enrollSubject, verifyLogin, checkAdminCredentials, checkRACredentials } from './services/mockDatabase';
-import { generateWelcomeMessage } from './services/geminiService';
 import AdminPanel from './components/AdminPanel';
 import RAPanel from './components/RAPanel';
 
@@ -30,7 +29,6 @@ export default function App() {
   const [inputSubjectId, setInputSubjectId] = useState('');
   const [inputAccessCode, setInputAccessCode] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [geminiMessage, setGeminiMessage] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,10 +80,6 @@ export default function App() {
     try {
       // 1. Get the assignment (Sequential)
       const assignment = await enrollSubject(state.currentSubjectId);
-      
-      // 2. Generate content with Gemini
-      const message = await generateWelcomeMessage(assignment);
-      setGeminiMessage(message);
 
       setState(prev => ({
         ...prev,
@@ -111,7 +105,6 @@ export default function App() {
     setInputSubjectId('');
     setInputAccessCode('');
     setLoginError('');
-    setGeminiMessage('');
   };
 
   // --- Render Views ---
@@ -272,13 +265,6 @@ export default function App() {
                 </h1>
                 <p className="text-slate-500 font-medium">
                   ID: {state.assignment.groupId}
-                </p>
-              </div>
-
-              {/* Gemini Generated Message */}
-              <div className="text-left bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-md mb-8">
-                <p className="text-slate-700 text-sm leading-relaxed italic">
-                  "{geminiMessage}"
                 </p>
               </div>
 
