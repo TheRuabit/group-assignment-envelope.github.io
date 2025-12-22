@@ -1,0 +1,5 @@
+  {
+    "name": "group-assignment-envelope2",
+    "compatibility_date": "2025-12-22",
+    "main": "./App.tsx"
+ }
